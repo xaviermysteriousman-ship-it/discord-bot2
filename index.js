@@ -34,10 +34,13 @@ client.once("ready", async () => {
         const rest = new REST({ version: "10" })
             .setToken(process.env.TOKEN2);
 
-        await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands }
-        );
+await rest.put(
+    Routes.applicationGuildCommands(
+        client.user.id,
+        "1323546242915242055"
+    ),
+    { body: commands }
+);
 
         console.log("Slash commands registered.");
     }
