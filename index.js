@@ -35,10 +35,7 @@ client.once("ready", async () => {
             .setToken(process.env.TOKEN2);
 
 await rest.put(
-    Routes.applicationGuildCommands(
-        client.user.id,
-        "1323546242915242055"
-    ),
+    Routes.applicationCommands(client.user.id),
     { body: commands }
 );
 
