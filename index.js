@@ -1,126 +1,278 @@
 require("dotenv").config();
 
+const fs = require("node:fs/promises");
+const path = require("node:path");
 const {
     Client,
     GatewayIntentBits,
     Partials,
+    PermissionFlagsBits,
     REST,
     Routes,
     SlashCommandBuilder
 } = require("discord.js");
 
+const token = process.env.DISCORD_TOKEN || process.env.TOKEN2;
+const clientId = process.env.DISCORD_CLIENT_ID || process.env.CLIENT_ID;
+const ownerIds = new Set(
+    (process.env.OWNER_IDS || "")
+        .split(",")
+        .map(id => id.trim())
+        .filter(Boolean)
+);
+
+if (!token) {
+    throw new Error("Missing DISCORD_TOKEN in .env. TOKEN2 is also supported for your old setup.");
+}
+
+const DATA_FILE = path.join(__dirname, "opted-in-users.json");
+
+// Discord API values. Kept inline so this works across more discord.js v14 versions.
+const ApplicationIntegrationType = {
+    GuildInstall: 0,
+    UserInstall: 1
+};
+
+const InteractionContextType = {
+    Guild: 0,
+    BotDM: 1,
+    PrivateChannel: 2
+};
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.DirectMessages,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.DirectMessages
     ],
     partials: [Partials.Channel]
 });
 
-// simple in-memory user store (YOU CAN upgrade later to JSON/db)
 const optedInUsers = new Set();
 
+function commandEverywhere(command) {
+    return {
+        ...command.toJSON(),
+        integration_types: [
+            ApplicationIntegrationType.GuildInstall,
+            ApplicationIntegrationType.UserInstall
+        ],
+        contexts: [
+            InteractionContextType.Guild,
+            InteractionContextType.BotDM,
+            InteractionContextType.PrivateChannel
+        ]
+    };
+}
+
 const commands = [
-    new SlashCommandBuilder()
-        .setName("ping")
-        .setDescription("Replies with Pong!"),
+    commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("ping")
+            .setDescription("Replies with Pong")
+    ),
 
-    new SlashCommandBuilder()
-        .setName("hello")
-        .setDescription("Say hello to the bot"),
+    commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("hello")
+            .setDescription("Say hello to the bot")
+    ),
 
-    new SlashCommandBuilder()
-        .setName("optin")
-        .setDescription("Allow receiving DM broadcasts from this app"),
+    commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("optin")
+            .setDescription("Allow receiving DM broadcasts from this app")
+    ),
 
-    new SlashCommandBuilder()
-        .setName("optout")
-        .setDescription("Stop receiving DM broadcasts"),
+    commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("optout")
+            .setDescription("Stop receiving DM broadcasts")
+    ),
 
-    new SlashCommandBuilder()
-        .setName("postmessage")
-        .setDescription("Send a DM broadcast to all opted-in users")
-        .addStringOption(opt =>
-            opt.setName("message")
-                .setDescription("Message to send")
-                .setRequired(true)
-        )
-].map(cmd => cmd.toJSON());
+    commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("postmessage")
+            .setDescription("Send a DM broadcast to all opted-in users")
+            .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+            .addStringOption(option =>
+                option
+                    .setName("message")
+                    .setDescription("Message to send")
+                    .setRequired(true)
+                    .setMaxLength(1800)
+            )
+    )
+];
+
+async function loadOptIns() {
+    try {
+        const raw = await fs.readFile(DATA_FILE, "utf8");
+        const ids = JSON.parse(raw);
+
+        if (!Array.isArray(ids)) {
+            throw new Error("opted-in-users.json must contain a JSON array.");
+        }
+
+        optedInUsers.clear();
+        for (const id of ids) {
+            if (typeof id === "string") optedInUsers.add(id);
+        }
+    } catch (err) {
+        if (err.code !== "ENOENT") throw err;
+    }
+}
+
+async function saveOptIns() {
+    await fs.writeFile(
+        DATA_FILE,
+        `${JSON.stringify([...optedInUsers], null, 2)}\n`,
+        "utf8"
+    );
+}
+
+async function registerCommands() {
+    const applicationId = clientId || client.application?.id || client.user?.id;
+
+    if (!applicationId) {
+        throw new Error("Could not determine application id. Set DISCORD_CLIENT_ID in .env.");
+    }
+
+    const rest = new REST({ version: "10" }).setToken(token);
+    await rest.put(Routes.applicationCommands(applicationId), { body: commands });
+}
+
+function canBroadcast(interaction) {
+    if (ownerIds.size > 0) {
+        return ownerIds.has(interaction.user.id);
+    }
+
+    return Boolean(
+        interaction.inGuild()
+        && interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)
+    );
+}
+
+function getSenderDisplay(interaction) {
+    return (
+        interaction.member?.displayName
+        || interaction.user.globalName
+        || interaction.user.username
+    );
+}
 
 client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}`);
+    console.log(`Loaded ${optedInUsers.size} opted-in users.`);
 
-    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN2);
-
-    await rest.put(
-        Routes.applicationCommands(client.user.id),
-        { body: commands }
-    );
-
-    console.log("Slash commands registered.");
+    try {
+        await registerCommands();
+        console.log("Global slash commands registered.");
+    } catch (err) {
+        console.error("Failed to register slash commands:", err);
+    }
 });
 
 client.on("interactionCreate", async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName } = interaction;
+    try {
+        const { commandName } = interaction;
 
-    // track anyone who interacts
-    optedInUsers.add(interaction.user.id);
-
-    if (commandName === "ping") {
-        return interaction.reply("Pong!");
-    }
-
-    if (commandName === "hello") {
-        return interaction.reply(`Hello ${interaction.user.username}!`);
-    }
-
-    if (commandName === "optin") {
-        optedInUsers.add(interaction.user.id);
-        return interaction.reply({ content: "You are now opted in for DM broadcasts.", ephemeral: true });
-    }
-
-    if (commandName === "optout") {
-        optedInUsers.delete(interaction.user.id);
-        return interaction.reply({ content: "You have been removed from DM broadcasts.", ephemeral: true });
-    }
-
-    if (commandName === "postmessage") {
-        const message = interaction.options.getString("message");
-
-        const senderUsername = interaction.user.username;
-        const senderDisplay =
-            interaction.member?.displayName || interaction.user.globalName || interaction.user.username;
-
-        await interaction.reply({
-            content: `Sending DM broadcast to ${optedInUsers.size} users...`,
-            ephemeral: true
-        });
-
-        let success = 0;
-        let failed = 0;
-
-        for (const userId of optedInUsers) {
-            try {
-                const user = await client.users.fetch(userId);
-
-                await user.send(
-                    `📢 **Broadcast Message**\n` +
-                    `From: ${senderUsername} (${senderDisplay})\n\n` +
-                    `${message}`
-                );
-
-                success++;
-            } catch (err) {
-                failed++;
-                console.log(`Failed to DM ${userId}:`, err.message);
-            }
+        if (commandName === "ping") {
+            await interaction.reply("Pong!");
+            return;
         }
 
-        console.log(`Broadcast done. Success: ${success}, Failed: ${failed}`);
+        if (commandName === "hello") {
+            await interaction.reply(`Hello ${interaction.user.username}!`);
+            return;
+        }
+
+        if (commandName === "optin") {
+            optedInUsers.add(interaction.user.id);
+            await saveOptIns();
+            await interaction.reply({
+                content: "You are now opted in for DM broadcasts.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        if (commandName === "optout") {
+            optedInUsers.delete(interaction.user.id);
+            await saveOptIns();
+            await interaction.reply({
+                content: "You have been removed from DM broadcasts.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        if (commandName === "postmessage") {
+            if (!canBroadcast(interaction)) {
+                await interaction.reply({
+                    content: "You are not allowed to send broadcasts. Add your Discord user ID to OWNER_IDS in .env, or use this in a server where you have Manage Server.",
+                    ephemeral: true
+                });
+                return;
+            }
+
+            const message = interaction.options.getString("message", true);
+            const senderUsername = interaction.user.username;
+            const senderDisplay = getSenderDisplay(interaction);
+
+            await interaction.deferReply({ ephemeral: true });
+
+            let success = 0;
+            let failed = 0;
+
+            for (const userId of optedInUsers) {
+                try {
+                    const user = await client.users.fetch(userId);
+                    await user.send({
+                        content:
+                            "[Broadcast Message]\n"
+                            + `From: ${senderUsername} (${senderDisplay})\n\n`
+                            + message,
+                        allowedMentions: { parse: [] }
+                    });
+                    success++;
+                } catch (err) {
+                    failed++;
+                    console.log(`Failed to DM ${userId}: ${err.message}`);
+                }
+            }
+
+            await interaction.editReply(
+                `Broadcast complete. Sent: ${success}. Failed: ${failed}.`
+            );
+        }
+    } catch (err) {
+        console.error("Interaction handler failed:", err);
+
+        const errorMessage = {
+            content: "Something went wrong while handling that command.",
+            ephemeral: true
+        };
+
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(errorMessage.content).catch(() => null);
+        } else {
+            await interaction.reply(errorMessage).catch(() => null);
+        }
     }
 });
 
-client.login(process.env.TOKEN2);
+process.on("unhandledRejection", err => {
+    console.error("Unhandled promise rejection:", err);
+});
+
+async function main() {
+    await loadOptIns();
+    await client.login(token);
+}
+
+main().catch(err => {
+    console.error(err);
+    process.exit(1);
+});
