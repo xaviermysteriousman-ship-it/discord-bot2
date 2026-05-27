@@ -73,7 +73,7 @@ const commands = [
 
     commandEverywhere(
         new SlashCommandBuilder()
-            .setName("speak-with-senior")
+            .setName("speak-to-senior")
             .setDescription("request to speak with a senior")
     ),
 
@@ -178,13 +178,21 @@ client.on("interactionCreate", async interaction => {
     try {
         const { commandName } = interaction;
 
-        if (commandName === "speak-to-senior") {
-            await interaction.reply("Requesting...");
-            setTimeout(() => {
-                await interaction.reply("Your request was denied. You are not high enough of a rank.");
-            }, 6000);
-            return;
+       if (commandName === "speak-to-senior") {
+    await interaction.reply("Requesting...");
+
+    setTimeout(async () => {
+        try {
+            await interaction.editReply(
+                "Your request was denied. You are not high enough of a rank."
+            );
+        } catch (err) {
+            console.error(err);
         }
+    }, 6000);
+
+    return;
+}
 
         if (commandName === "job") {
             await interaction.reply("Your job for today is: spread the message of Blueberry Pie.");
