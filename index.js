@@ -184,8 +184,9 @@ client.on("interactionCreate", async interaction => {
     try {
         const { commandName } = interaction;
 
-        // Random delay between 4–12 seconds
-        const delay = Math.floor(Math.random() * (12000 - 4000 + 1)) + 4000;
+        // Random delay: 4–12 seconds
+        const delay =
+            Math.floor(Math.random() * (12000 - 4000 + 1)) + 4000;
 
         if (commandName === "speak-to-senior") {
             await interaction.reply("Requesting...");
@@ -219,102 +220,121 @@ client.on("interactionCreate", async interaction => {
             return;
         }
 
-    } catch (err) {
-        console.error("Interaction handler failed:", err);
-
-        const errorMessage = {
-            content: "Something went wrong while handling that command.",
-            ephemeral: true
-        };
-
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(errorMessage.content).catch(() => null);
-        } else {
-            await interaction.reply(errorMessage).catch(() => null);
-        }
-    }
-});
-
         if (commandName === "job") {
-            await interaction.reply("Your job for today is: spread the message of Blueberry Pie.");
+            await interaction.reply(
+                "Your job for today is: spread the message of Blueberry Pie."
+            );
             return;
         }
 
         if (commandName === "agree-to-terms") {
             optedInUsers.add(interaction.user.id);
+
             await saveOptIns();
+
             await interaction.reply({
                 content: "You are now rank: Junior 118 in discord.",
                 ephemeral: true
             });
+
             return;
         }
 
         if (commandName === "leave") {
             optedInUsers.delete(interaction.user.id);
+
             await saveOptIns();
+
             await interaction.reply({
                 content: "You have been removed from our ranks.",
                 ephemeral: true
             });
+
             return;
         }
 
         if (commandName === "postmessage") {
             if (!canBroadcast(interaction)) {
                 await interaction.reply({
-                    content: "You are not allowed to send broadcasts. Add your Discord user ID to OWNER_IDS in .env, or use this in a server where you have Manage Server.",
+                    content:
+                        "You are not allowed to send broadcasts.",
                     ephemeral: true
                 });
+
                 return;
             }
 
-            const message = interaction.options.getString("message", true);
-            const senderUsername = interaction.user.username;
-            const senderDisplay = getSenderDisplay(interaction);
+            const message =
+                interaction.options.getString(
+                    "message",
+                    true
+                );
 
-            await interaction.deferReply({ ephemeral: true });
+            await interaction.deferReply({
+                ephemeral: true
+            });
 
             let success = 0;
             let failed = 0;
 
             for (const userId of optedInUsers) {
                 try {
-                    const user = await client.users.fetch(userId);
+                    const user =
+                        await client.users.fetch(userId);
+
                     await user.send({
                         content:
-                            "[Broadcast Message]\n"
-                            + `From: prateri1038 (Brother Prateri)\n\n`
-                            + message,
-                        allowedMentions: { parse: [] }
+                            "[Broadcast Message]\n" +
+                            "From: prateri1038 (Brother Prateri)\n\n" +
+                            message,
+                        allowedMentions: {
+                            parse: []
+                        }
                     });
+
                     success++;
                 } catch (err) {
                     failed++;
-                    console.log(`Failed to DM ${userId}: ${err.message}`);
+
+                    console.log(
+                        `Failed to DM ${userId}: ${err.message}`
+                    );
                 }
             }
 
             await interaction.editReply(
                 `Broadcast complete. Sent: ${success}. Failed: ${failed}.`
             );
+
+            return;
         }
+
     } catch (err) {
-        console.error("Interaction handler failed:", err);
+        console.error(
+            "Interaction handler failed:",
+            err
+        );
 
         const errorMessage = {
-            content: "Something went wrong while handling that command.",
+            content:
+                "Something went wrong while handling that command.",
             ephemeral: true
         };
 
-        if (interaction.deferred || interaction.replied) {
-            await interaction.editReply(errorMessage.content).catch(() => null);
+        if (
+            interaction.deferred ||
+            interaction.replied
+        ) {
+            await interaction
+                .editReply(errorMessage.content)
+                .catch(() => null);
         } else {
-            await interaction.reply(errorMessage).catch(() => null);
+            await interaction
+                .reply(errorMessage)
+                .catch(() => null);
         }
     }
 });
-
 process.on("unhandledRejection", err => {
     console.error("Unhandled promise rejection:", err);
 });
