@@ -67,26 +67,26 @@ function commandEverywhere(command) {
 const commands = [
     commandEverywhere(
         new SlashCommandBuilder()
-            .setName("ping")
-            .setDescription("Replies with Pong")
+            .setName("job")
+            .setDescription("tells you your daily job")
     ),
 
     commandEverywhere(
         new SlashCommandBuilder()
-            .setName("hello")
-            .setDescription("Say hello to the bot")
+            .setName("speak-with-senior")
+            .setDescription("request to speak with a senior")
     ),
 
     commandEverywhere(
         new SlashCommandBuilder()
-            .setName("optin")
-            .setDescription("Allow receiving DM broadcasts from this app")
+            .setName("agree-to-terms")
+            .setDescription("agree to the terms")
     ),
 
     commandEverywhere(
         new SlashCommandBuilder()
-            .setName("optout")
-            .setDescription("Stop receiving DM broadcasts")
+            .setName("leave")
+            .setDescription("leave the team.")
     ),
 
     commandEverywhere(
