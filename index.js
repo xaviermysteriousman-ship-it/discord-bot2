@@ -77,6 +77,12 @@ const commands = [
             .setDescription("request to speak with a senior")
     ),
 
+     commandEverywhere(
+        new SlashCommandBuilder()
+            .setName("speak-to-junior-leader")
+            .setDescription("request to speak with a junior leader")
+    ),
+
     commandEverywhere(
         new SlashCommandBuilder()
             .setName("agree-to-terms")
@@ -178,21 +184,56 @@ client.on("interactionCreate", async interaction => {
     try {
         const { commandName } = interaction;
 
-       if (commandName === "speak-to-senior") {
-    await interaction.reply("Requesting...");
+        // Random delay between 4–12 seconds
+        const delay = Math.floor(Math.random() * (12000 - 4000 + 1)) + 4000;
 
-    setTimeout(async () => {
-        try {
-            await interaction.editReply(
-                "Your request was denied. You are not high enough of a rank."
-            );
-        } catch (err) {
-            console.error(err);
+        if (commandName === "speak-to-senior") {
+            await interaction.reply("Requesting...");
+
+            setTimeout(async () => {
+                try {
+                    await interaction.editReply(
+                        "Your request was denied. You are not high enough of a rank."
+                    );
+                } catch (err) {
+                    console.error("Senior request failed:", err);
+                }
+            }, delay);
+
+            return;
         }
-    }, 6000);
 
-    return;
-}
+        if (commandName === "speak-to-junior-leader") {
+            await interaction.reply("Requesting...");
+
+            setTimeout(async () => {
+                try {
+                    await interaction.editReply(
+                        "Your request was denied."
+                    );
+                } catch (err) {
+                    console.error("Junior leader request failed:", err);
+                }
+            }, delay);
+
+            return;
+        }
+
+    } catch (err) {
+        console.error("Interaction handler failed:", err);
+
+        const errorMessage = {
+            content: "Something went wrong while handling that command.",
+            ephemeral: true
+        };
+
+        if (interaction.deferred || interaction.replied) {
+            await interaction.editReply(errorMessage.content).catch(() => null);
+        } else {
+            await interaction.reply(errorMessage).catch(() => null);
+        }
+    }
+});
 
         if (commandName === "job") {
             await interaction.reply("Your job for today is: spread the message of Blueberry Pie.");
