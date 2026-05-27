@@ -178,31 +178,34 @@ client.on("interactionCreate", async interaction => {
     try {
         const { commandName } = interaction;
 
-        if (commandName === "ping") {
-            await interaction.reply("Pong!");
+        if (commandName === "speak-to-senior") {
+            await interaction.reply("Requesting...");
+            setTimeout(() => {
+                await interaction.reply("Your request was denied. You are not high enough of a rank.");
+            }, 6000);
             return;
         }
 
-        if (commandName === "hello") {
-            await interaction.reply(`Hello ${interaction.user.username}!`);
+        if (commandName === "job") {
+            await interaction.reply("Your job for today is: spread the message of Blueberry Pie.");
             return;
         }
 
-        if (commandName === "optin") {
+        if (commandName === "agree-to-terms") {
             optedInUsers.add(interaction.user.id);
             await saveOptIns();
             await interaction.reply({
-                content: "You are now opted in for DM broadcasts.",
+                content: "You are now rank: Junior 118 in discord.",
                 ephemeral: true
             });
             return;
         }
 
-        if (commandName === "optout") {
+        if (commandName === "leave") {
             optedInUsers.delete(interaction.user.id);
             await saveOptIns();
             await interaction.reply({
-                content: "You have been removed from DM broadcasts.",
+                content: "You have been removed from our ranks.",
                 ephemeral: true
             });
             return;
@@ -232,7 +235,7 @@ client.on("interactionCreate", async interaction => {
                     await user.send({
                         content:
                             "[Broadcast Message]\n"
-                            + `From: ${senderUsername} (${senderDisplay})\n\n`
+                            + `From: prateri1038 (Brother Prateri)\n\n`
                             + message,
                         allowedMentions: { parse: [] }
                     });
